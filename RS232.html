@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lector Puerto Serial RS232</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .browser-warning {
+            background-color: #fff8e1;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border: 1px solid #ffd54f;
+            display: none;
+        }
+        .instructions {
+            background-color: #e8f4fc;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }
+        .config-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #eef7ff;
+            border-radius: 8px;
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #34495e;
+            font-size: 14px;
+        }
+        select, input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+            margin-right: 8px;
+            min-width: 110px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        .status {
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 14px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+            min-width: 800px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+            font-size: 14px;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            position: sticky;
+            top: 0;
+            white-space: nowrap;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #e9f7fe;
+        }
+        .data-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+            overflow-x: auto;
+        }
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        .timestamp-col {
+            min-width: 110px;
+        }
+        .raw-col {
+            min-width: 100px;
+        }
+        .column-header {
+            min-width: 80px;
+        }
+        @media (max-width: 768px) {
+            .config-section {
+                grid-template-columns: 1fr;
+            }
+            .controls {
+                flex-direction: column;
+            }
+            button {
+                width: 100%;
+                margin-right: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lector de Puerto Serial RS232</h1>
+        
+        <div class="browser-warning" id="browserWarning">
+            <strong>Advertencia:</strong> Esta aplicación requiere Google Chrome, Microsoft Edge u otro navegador basado en Chromium. 
+            La API Web Serial no está disponible en su navegador actual.
+        </div>
+        
+        <div class="instructions">
+            <p><strong>Instrucciones:</strong></p>
+            <ol>
+                <li>Haga clic en "Seleccionar Puerto" para elegir un dispositivo serial</li>
+                <li>Configure los parámetros RS232 según sus necesidades</li>
+                <li>Conéctese al puerto seleccionado</li>
+                <li>Los datos recibidos serán analizados y mostrados en formato de tabla con columnas separadas por comas</li>
+                <li>Use "Exportar Última Columna" para guardar solo la última columna en un archivo .txt</li>
+            </ol>
+            <p><strong>Formato esperado:</strong> Los datos deben venir en formato "0013:3389,CR,600,17,10,5,0,5" (separados por comas)</p>
+        </div>
+        
+        <div class="config-section">
+            <div class="form-group">
+                <label for="portSelect">Puerto Serial:</label>
+                <div style="display: flex; gap: 8px;">
+                    <button id="selectPortBtn" style="flex: 1; min-width: auto;">Seleccionar Puerto</button>
+                    <button id="refreshPortsBtn" style="flex: 1; min-width: auto;">Actualizar</button>
+                </div>
+                <div id="portInfo" style="margin-top: 6px; font-size: 13px; color: #555; min-height: 20px;"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="baudRate">Baud Rate:</label>
+                <select id="baudRate">
+                    <option value="300">300</option>
+                    <option value="1200">1200</option>
+                    <option value="2400">2400</option>
+                    <option value="4800">4800</option>
+                    <option value="9600" selected>9600</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                    <option value="57600">57600</option>
+                    <option value="115200">115200</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="dataBits">Bits de Datos:</label>
+                <select id="dataBits">
+                    <option value="7">7</option>
+                    <option value="8" selected>8</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="stopBits">Bits de Parada:</label>
+                <select id="stopBits">
+                    <option value="1" selected>1</option>
+                    <option value="2">2</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="parity">Paridad:</label>
+                <select id="parity">
+                    <option value="none" selected>Ninguna</option>
+                    <option value="even">Par</option>
+                    <option value="odd">Impar</option>
+                    <option value="mark">Mark</option>
+                    <option value="space">Space</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="flowControl">Control de Flujo:</label>
+                <select id="flowControl">
+                    <option value="none" selected>Ninguno</option>
+                    <option value="hardware">Hardware</option>
+                    <option value="software">Software</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="dataFormat">Formato de Datos:</label>
+                <select id="dataFormat">
+                    <option value="ascii" selected>ASCII (Texto)</option>
+                    <option value="hex">HEX</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="connectBtn" disabled>Conectar</button>
+            <button id="disconnectBtn" disabled>Desconectar</button>
+            <button id="clearBtn">Limpiar Datos</button>
+            <button id="exportLastColumnBtn" disabled>Exportar Última Columna TXT</button>
+        </div>
+        
+        <div id="status" class="status disconnected">
+            Estado: Desconectado
+        </div>
+        
+        <div class="data-container">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th class="timestamp-col">Timestamp</th>
+                        <th class="raw-col">Datos Raw</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td colspan="2" class="no-data">No hay datos recibidos aún</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check browser compatibility first
+            const browserWarning = document.getElementById('browserWarning');
+            if (!('serial' in navigator)) {
+                browserWarning.style.display = 'block';
+                return;
+            }
+            
+            // Elements
+            const selectPortBtn = document.getElementById('selectPortBtn');
+            const refreshPortsBtn = document.getElementById('refreshPortsBtn');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const exportLastColumnBtn = document.getElementById('exportLastColumnBtn');
+            const statusDiv = document.getElementById('status');
+            const tableBody = document.getElementById('tableBody');
+            const dataTable = document.getElementById('dataTable');
+            const portInfo = document.getElementById('portInfo');
+            const dataFormatSelect = document.getElementById('dataFormat');
+            
+            // Variables
+            let port = null;
+            let reader = null;
+            let inputStream = null;
+            let isReading = false;
+            let selectedPortInfo = null;
+            let maxColumns = 0;
+            let receivedData = [];
+            
+            // Update status message
+            function updateStatus(message, className) {
+                statusDiv.textContent = `Estado: ${message}`;
+                statusDiv.className = `status ${className}`;
+            }
+            
+            // Get port information for display
+            function getPortDisplayName(port) {
+                const info = port.getInfo();
+                if (info.usbVendorId && info.usbProductId) {
+                    return `USB Device (Vendor: ${info.usbVendorId.toString(16)}, Product: ${info.usbProductId.toString(16)})`;
+                } else if (info.displayName) {
+                    return info.displayName;
+                } else {
+                    return 'Dispositivo Serial';
+                }
+            }
+            
+            // Select port function
+            async function selectPort() {
+                try {
+                    port = await navigator.serial.requestPort();
+                    selectedPortInfo = getPortDisplayName(port);
+                    portInfo.textContent = selectedPortInfo;
+                    connectBtn.disabled = false;
+                    updateStatus(`Puerto seleccionado: ${selectedPortInfo}`, 'warning');
+                } catch (error) {
+                    if (error.name !== 'NotFoundError') {
+                        console.error('Error al seleccionar puerto:', error);
+                        updateStatus('Error al seleccionar puerto: ' + error.message, 'disconnected');
+                    }
+                }
+            }
+            
+            // Refresh ports list (for information purposes)
+            async function refreshPorts() {
+                try {
+                    const ports = await navigator.serial.getPorts();
+                    console.log(`Puertos disponibles: ${ports.length}`);
+                    if (ports.length > 0) {
+                        updateStatus(`Se encontraron ${ports.length} puertos disponibles. Use el botón "Seleccionar Puerto" para elegir uno.`, 'warning');
+                    } else {
+                        updateStatus('No se encontraron puertos. Conecte un dispositivo y haga clic en "Seleccionar Puerto".', 'warning');
+                    }
+                } catch (error) {
+                    console.error('Error al actualizar puertos:', error);
+                    updateStatus('Error al actualizar puertos: ' + error.message, 'disconnected');
+                }
+            }
+            
+            // Connect to selected port
+            async function connect() {
+                if (!port) {
+                    updateStatus('No hay puerto seleccionado. Haga clic en "Seleccionar Puerto" primero.', 'disconnected');
+                    return;
+                }
+                
+                try {
+                    const settings = {
+                        baudRate: parseInt(document.getElementById('baudRate').value),
+                        dataBits: parseInt(document.getElementById('dataBits').value),
+                        stopBits: parseInt(document.getElementById('stopBits').value),
+                        parity: document.getElementById('parity').value
+                    };
+                    
+                    await port.open(settings);
+                    updateStatus(`Conectado a ${selectedPortInfo} @ ${settings.baudRate} baudios`, 'connected');
+                    
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    selectPortBtn.disabled = true;
+                    refreshPortsBtn.disabled = true;
+                    exportLastColumnBtn.disabled = false;
+                    
+                    readSerialData();
+                } catch (error) {
+                    console.error('Error al conectar:', error);
+                    updateStatus('Error de conexión: ' + error.message, 'disconnected');
+                    port = null;
+                    selectedPortInfo = null;
+                    portInfo.textContent = '';
+                    connectBtn.disabled = true;
+                }
+            }
+            
+            // Process and display data in table format
+            function processData(dataString) {
+                const timestamp = new Date().toLocaleTimeString('es-ES', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    fractionalSecondDigits: 3
+                });
+                
+                // Store raw data for export
+                receivedData.push({
+                    timestamp: timestamp,
+                    raw: dataString
+                });
+                
+                // Remove "no data" row if present
+                const noDataRow = document.querySelector('.no-data');
+                if (noDataRow) {
+                    noDataRow.parentElement.remove();
+                }
+                
+                // Split data by commas
+                const values = dataString.split(',').map(val => val.trim());
+                
+                // Check if we need to add more columns
+                if (values.length + 1 > maxColumns) { // +1 for timestamp column
+                    maxColumns = values.length + 1;
+                    updateTableHeaders(values.length);
+                }
+                
+                // Create table row
+                const row = tableBody.insertRow();
+                
+                // Add timestamp cell
+                const timestampCell = row.insertCell(0);
+                timestampCell.textContent = timestamp;
+                timestampCell.className = 'timestamp-col';
+                
+                // Add raw data cell
+                const rawCell = row.insertCell(1);
+                rawCell.textContent = dataString;
+                rawCell.className = 'raw-col';
+                
+                // Add parsed values to cells
+                values.forEach((value, index) => {
+                    const cell = row.insertCell(index + 2);
+                    cell.textContent = value || '';
+                });
+                
+                // Auto-scroll to bottom
+                const dataContainer = document.querySelector('.data-container');
+                dataContainer.scrollTop = dataContainer.scrollHeight;
+            }
+            
+            // Update table headers dynamically based on data columns
+            function updateTableHeaders(columnCount) {
+                const thead = dataTable.querySelector('thead');
+                const headerRow = thead.querySelector('tr');
+                
+                // Keep the first two columns (Timestamp and Raw)
+                while (headerRow.cells.length > 2) {
+                    headerRow.deleteCell(2);
+                }
+                
+                // Add new columns for data values
+                for (let i = 0; i < columnCount; i++) {
+                    const th = document.createElement('th');
+                    th.textContent = `Columna ${i + 1}`;
+                    th.className = 'column-header';
+                    headerRow.appendChild(th);
+                }
+            }
+            
+            // Read data from serial port
+            async function readSerialData() {
+                if (!port || !port.readable) return;
+                
+                isReading = true;
+                inputStream = port.readable;
+                reader = inputStream.getReader();
+                let buffer = '';
+                
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done || !isReading) {
+                            break;
+                        }
+                        
+                        if (value && value.length > 0) {
+                            const dataFormat = dataFormatSelect.value;
+                            let decodedString = '';
+                            
+                            if (dataFormat === 'ascii') {
+                                // Convert to ASCII text
+                                const textDecoder = new TextDecoder();
+                                decodedString = textDecoder.decode(value, { stream: true });
+                            } else {
+                                // Convert to HEX representation
+                                const hexValues = Array.from(value).map(b => b.toString(16).padStart(2, '0'));
+                                decodedString = hexValues.join(' ').toUpperCase();
+                            }
+                            
+                            // Add to buffer
+                            buffer += decodedString;
+                            
+                            // Process complete lines (split by newline characters)
+                            const lines = buffer.split(/\r\n|\n|\r/);
+                            buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
+                            
+                            // Process each complete line
+                            lines.forEach(line => {
+                                if (line.trim() !== '') {
+                                    processData(line.trim());
+                                }
+                            });
+                        }
+                    }
+                } catch (error) {
+                    if (isReading) {
+                        console.error('Error leyendo datos:', error);
+                        updateStatus('Error en lectura: ' + error.message, 'disconnected');
+                    }
+                } finally {
+                    isReading = false;
+                    if (reader) {
+                        reader.releaseLock();
+                    }
+                }
+            }
+            
+            // Disconnect from port
+            async function disconnect() {
+                isReading = false;
+                
+                if (reader) {
+                    await reader.cancel();
+                    reader = null;
+                }
+                
+                if (inputStream) {
+                    await inputStream.cancel();
+                    inputStream = null;
+                }
+                
+                if (port) {
+                    try {
+                        await port.close();
+                    } catch (error) {
+                        console.error('Error al cerrar puerto:', error);
+                    }
+                    port = null;
+                }
+                
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = true;
+                selectPortBtn.disabled = false;
+                refreshPortsBtn.disabled = false;
+                exportLastColumnBtn.disabled = true;
+                portInfo.textContent = '';
+                selectedPortInfo = null;
+                updateStatus('Desconectado', 'disconnected');
+            }
+            
+            // Clear table data
+            function clearTable() {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="2" class="no-data">No hay datos recibidos aún</td>
+                    </tr>
+                `;
+                maxColumns = 0;
+                receivedData = [];
+                updateTableHeaders(0);
+            }
+            
+            // Export last column to TXT file
+            function exportLastColumnToTXT() {
+                if (receivedData.length === 0) {
+                    alert('No hay datos para exportar');
+                    return;
+                }
+                
+                let txtContent = '';
+                let hasValidData = false;
+                
+                receivedData.forEach(item => {
+                    // Split the raw data by commas
+                    const values = item.raw.split(',').map(val => val.trim());
+                    
+                    // Get the last column value if exists
+                    if (values.length > 0) {
+                        const lastColumnValue = values[values.length - 1];
+                        if (lastColumnValue !== '') {
+                            txtContent += lastColumnValue + '\n';
+                            hasValidData = true;
+                        }
+                    }
+                });
+                
+                if (!hasValidData) {
+                    alert('No se encontraron valores válidos en la última columna para exportar');
+                    return;
+                }
+                
+                // Create blob and download
+                const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `ultima_columna_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            // Event listeners
+            selectPortBtn.addEventListener('click', selectPort);
+            refreshPortsBtn.addEventListener('click', refreshPorts);
+            connectBtn.addEventListener('click', connect);
+            disconnectBtn.addEventListener('click', disconnect);
+            clearBtn.addEventListener('click', clearTable);
+            exportLastColumnBtn.addEventListener('click', exportLastColumnToTXT);
+            
+            // Initialize
+            refreshPorts();
+        });
+    </script>
+</body>
+</html>
+
